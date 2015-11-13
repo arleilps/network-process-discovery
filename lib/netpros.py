@@ -187,12 +187,10 @@ class OneDFourier(object):
 
 def L2(F, F_approx):
 	e = 0
-	s = 0
 	for i in range(F.shape[0]):
 		e = e + ((F[i]-F_approx[i])**2).sum()
-		s = s + ((F[i])**2).sum()
 
-	return float(e) / s
+	return float(e) 
 
 def L1(F, F_approx):
 	e = 0

@@ -63,16 +63,16 @@ def generate_dyn_heat(G, s, jump, n):
 	for i in range(s):
 		F0 = numpy.zeros(len(G.nodes()))
 		v = random.randint(0, len(G.nodes())-1)
-		seeds,append(v)
+		seeds.append(v)
 		F0[v] = 1.0
 		F0s.append(F0)
 
 	Fs.append(numpy.sum(F0s, axis=0))
 
 	for j in range(n):
-		FI = []
+		FIs = []
 		for i in range(s):
-			FI = numpy.multiply(linalg.expm(-i*jump*L), F0s[i])[:,seeds[i]]
+			FI = numpy.multiply(linalg.expm(-j*jump*L), F0s[i])[:,seeds[i]]
 			FIs.append(FI)
 		
 		Fs.append(numpy.sum(FIs, axis=0))
@@ -84,17 +84,6 @@ def generate_dyn_gaussian_noise(G, n):
 	
 	for j in range(n):
 		F = numpy.random.rand(len(G.nodes()))
-		Fs.append(F)
-
-	return numpy.array(Fs)
-
-def generate_dyn_sync_smooth_gaussian_noise(G, freq, n):
-	Fs = []
-	t = numpy.arange(0, n, float(1) / n)
-	y = numpy.sin(2*numpy.pi*freq*t)
-
-	for j in range(n):
-		F = y[j]*numpy.random.rand(len(G.nodes()))
 		Fs.append(F)
 
 	return numpy.array(Fs)
@@ -158,6 +147,49 @@ def generate_dyn_indep_cascade(G, s, p):
 			elif F0[ind[v]] > 0.0:
 				F1[ind[v]] = 1.0
 		
+		Fs.append(F0)
+		
+		if new_inf == 0 and len(Fs) > 1:
+			break
+
+		F0 = numpy.copy(F1)
+	
+	return numpy.array(Fs)
+
+def generate_dyn_linear_threshold(G, s):
+	Fs = []
+	
+	seeds = numpy.random.choice(len(G.nodes()), s, replace=False)
+	
+	F0 = numpy.zeros(len(G.nodes()))
+	thresholds = numpy.random.uniform(0.0,1.0,len(G.nodes()))
+	
+	ind = {}
+	i = 0
+
+	for v in G.nodes():
+		ind[v] = i
+		i = i + 1
+	
+	for s in seeds:
+		F0[s] = 1.0
+
+	while True:
+		F1 = numpy.zeros(len(G.nodes()))
+		new_inf = 0
+		for v in G.nodes():
+			if F0[ind[v]] < 1.0:
+				n = 0			
+				for u in G.neighbors(v):
+					if F0[ind[u]] > 0:
+						n = n + 1
+				
+				if (float(n) / len(G.neighbors(v))) >= thresholds[ind[v]]:
+					F1[ind[v]] = 1.0
+					new_inf = new_inf + 1
+			else:
+				F1[ind[v]] = 1.0					
+	
 		Fs.append(F0)
 		
 		if new_inf == 0 and len(Fs) > 1:
