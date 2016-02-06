@@ -19,68 +19,82 @@ from datetime import datetime, date, time, timedelta
 import statsmodels.api as sm
 
 def read_graph(input_graph_name, input_data_name):
-    G = networkx.Graph()
+	input_data = open(input_data_name, 'r')
+	values = {}
     
-    input_graph = open(input_graph_name, 'r')
+	for line in input_data:
+		line = line.rstrip()
+		vec = line.rsplit(',')
+        
+		vertex = vec[0]
+		value = float(vec[1])
+		values[vertex] = value
+        
+	input_data.close()
     
-    for line in input_graph:
-        line = line.rstrip()
-        vec = line.rsplit(',')
+	G = networkx.Graph()
+    
+	input_graph = open(input_graph_name, 'r')
+    
+	for line in input_graph:
+		line = line.rstrip()
+		vec = line.rsplit(',')
+		v1 = vec[0]
+		v2 = vec[1]
 
-        v1 = vec[0]
-        v2 = vec[1]
-        
-        G.add_edge(v1,v2)
+		if v1 in values and v2 in values:
+			G.add_edge(v1,v2, weight=1.)
+   
+	Gcc=sorted(networkx.connected_component_subgraphs(G), key = len, reverse=True)
+
+	G = Gcc[0]
+
+	values_in_graph = {}
+
+	for v in values.keys():
+		if v in G:
+			values_in_graph[v] = values[v]
+	
+	input_graph.close()
+	networkx.set_node_attributes(G, "value", values_in_graph)
     
-    input_graph.close()
-    
-    input_data = open(input_data_name, 'r')
-    values = {}
-    
-    for line in input_data:
-        line = line.rstrip()
-        vec = line.rsplit(',')
-        
-        vertex = vec[0]
-        value = float(vec[1])
-        values[vertex] = value
-        
-    networkx.set_node_attributes(G, "value", values)
-    
-    input_data.close()
-    
-    return G
+	return G
 
 def read_values(input_data_name, G):
-    D = {}
-    input_data = open(input_data_name, 'r')
+	D = {}
+	input_data = open(input_data_name, 'r')
 
-    for line in input_data:
-        line = line.rstrip()
-        vec = line.rsplit(',')
+	for line in input_data:
+		line = line.rstrip()
+		vec = line.rsplit(',')
 
-        vertex = vec[0]
-        value = float(vec[1])
-        D[vertex] = value
+		vertex = vec[0]
+		value = float(vec[1])
+		D[vertex] = value
 
-    input_data.close()
+	input_data.close()
     
-    F = []
-    for v in G.nodes():
-        F.append(float(D[v]))
+	F = []
+	for v in G.nodes():
+		if v in D:
+			F.append(float(D[v]))
+		else:
+			F.append(0.)
    
-    F = numpy.array(F)
+	F = numpy.array(F) 
+	F = F / numpy.max(F)
+	F = F - numpy.mean(F)
     
-    return F 
+	return F 
 
 def read_dyn_graph(path, num_snapshots, G):
-    FT = []
-    for t in range(num_snapshots):
-        in_file = path + "_" + str(t) + ".data"
-        F = read_values(in_file, G)
-        FT.append(F)
+	FT = []
+	for t in range(num_snapshots):
+		in_file = path + "_" + str(t) + ".data"
+		F = read_values(in_file, G)
+		FT.append(F)
         
-    return numpy.array(FT)
+	return numpy.array(FT)
 
 def clean_traffic_data(FT):
 	start_time = datetime.strptime("1/04/11 00:00", "%d/%m/%y %H:%M")

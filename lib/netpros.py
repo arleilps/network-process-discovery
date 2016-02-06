@@ -16,6 +16,7 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import SpectralClustering
 
 from lib.graph_signal_proc import *
+from lib.optimal_cut import *
 
 def build_stacked_graph_dense(G, FT):
 	GT = networkx.Graph()
@@ -45,8 +46,8 @@ def build_stacked_graph_dense(G, FT):
 			GT.node[str(v)+"-"+str(t)]["value"] = FT[t][i]
 			i = i + 1
 		
-		for v in GT.nodes():
-			F.append(GT.node[v]["value"])
+	for v in GT.nodes():
+		F.append(GT.node[v]["value"])
 	
 	return GT, numpy.array(F)
 
@@ -455,6 +456,8 @@ class OneDGWavelets(object):
 
 		return wtr_copy
 
+
+
 class TwoDGNCWavelets(object):
 	def name(self):
 		return "2D-Gavish-Norm-Cut"
@@ -518,7 +521,6 @@ class TwoDGNCWavelets(object):
 			wtr_copy[i][j][k] = 0.0
 
 		return wtr_copy
-
 
 	def scale_energy_info(self, wtr):
 		sei = []
@@ -594,3 +596,201 @@ class SVD(object):
 		n_svd = int(math.floor(float(n) / (svd[0].shape[1] + svd[2].shape[0])))
 
 		return svd[0], svd_filter(svd[0], numpy.copy(svd[1]), svd[2], n_svd), svd[2]    
+
+class TwoDPWavelets(object):
+	def __init__(self):
+		self.k = 10
+	
+	def name(self):
+		return "2D-Pyramid"
+
+	def set_graph(self, _G):
+		self.G = _G
+		(self.tree, self.ind) = pyramid_hierarchy(self.G, k)
+	
+	def set_k(self, k):
+		self.k = k
+
+	def transform(self, F):
+		"""
+		"""
+		f1 = []
+		for a in range(F.shape[0]):
+			wv = pyramid_wavelet_transform(self.tree, self.ind, self.G, F[a])
+			f1.append(wv)
+
+		db1 = pywt.Wavelet('db1')
+
+		f1 = numpy.array(f1)
+		f2 = []
+
+		for a in range(f1.shape[1]):
+			wv = pywt.wavedec(f1[:,a], db1)
+			f2.append(wv)
+
+		return f2
+
+	def inverse(self, wtr):
+		"""
+		"""
+		f1 = []
+		for a in range(len(wtr)):
+			wv = pywt.waverec(wtr[a], 'db1')
+			f1.append(wv)
+
+		F = []    
+		f1 = numpy.array(f1).transpose()
+
+		for t in range(f1.shape[0]):
+			f = pyramid_wavelet_inverse(self.tree, self.ind, self.G, f1[t])
+			F.append(f)
+
+		return numpy.array(F)
+
+	def drop_frequency(self, wtr, n):
+		coeffs = {}
+		for i in range(len(wtr)):
+			for j in range(len(wtr[i])):
+				for k in range(len(wtr[i][j])):
+					coeffs[(i,j,k)] = abs(wtr[i][j][k])
+
+		sorted_coeffs = sorted(coeffs.items(), key=operator.itemgetter(1), reverse=True)
+
+		wtr_copy = copy.deepcopy(wtr)
+
+		for k in range(n, len(sorted_coeffs)):
+			i = sorted_coeffs[k][0][0]
+			j = sorted_coeffs[k][0][1]
+			k = sorted_coeffs[k][0][2]
+
+			wtr_copy[i][j][k] = 0.0
+
+		return wtr_copy
+
+
+	def scale_energy_info(self, wtr):
+		sei = []
+		s = 0
+		for i in range(len(wtr)):
+			sei.append([])
+			for j in range(len(wtr[i])):
+				for k in range(len(wtr[i][j])):
+					sei[i].append(abs(wtr[i][j][k]))
+					s = s + abs(wtr[i][j][k])
+
+		return numpy.array(sei) / s
+
+class OneDPWavelets(object):
+	def __init__(self):
+		self.k = 10
+	
+	def name(self):
+		return "1D-Pyramid"
+
+	def set_graph(self, _G):
+		self.G_unstacked = _G
+	
+	def set_k(self, k):
+		self.k = k
+
+	def transform(self, _F):
+		"""
+		"""
+		(self.G, self.F) = build_stacked_graph_dense(self.G_unstacked, _F)
+		(self.tree, self.ind) = pyramid_hierarchy(self.G, k)
+
+		return pyramid_wavelet_transform(self.tree, self.ind, self.G, self.F)
+
+	def inverse(self, wtr):
+		"""
+		"""
+		inv_stacked =  pyramid_wavelet_inverse(self.tree, self.ind, self.G, wtr)
+
+		return values_stacked_graph(inv_stacked, self.G, self.G_unstacked)
+
+	def drop_frequency(self, wtr, n):
+		coeffs = {}
+
+		for i in range(wtr.shape[0]):
+			coeffs[i] = abs(wtr[i])
+
+		sorted_coeffs = sorted(coeffs.items(), key=operator.itemgetter(1), reverse=True)
+
+		wtr_copy = numpy.copy(wtr)
+
+		for k in range(n, len(sorted_coeffs)):
+			i = sorted_coeffs[k][0]
+			wtr_copy[i] = 0
+
+		return wtr_copy
+
+class TwoDOptWavelets(object):
+	def __init__(self, k, beta, G, F, n):
+		self.k = k
+		self.beta = beta
+		(self.tree, self.ind) = best_tree_avg(G, F, k, beta, n)	
+
+	def name(self):
+		return "2D-Sparse-cut"
+
+	def set_graph(self, _G):
+		self.G = _G
+
+	def transform(self, F):
+		"""
+		"""
+		f1 = []
+		T = []
+
+		for a in range(F.shape[0]):
+			wv = gavish_wavelet_transform(self.tree, self.ind, self.G, F[a])
+			f1.append(wv)
+
+		db1 = pywt.Wavelet('db1')
+
+		f1 = numpy.array(f1)
+		f2 = []
+
+		for a in range(f1.shape[1]):
+			wv = pywt.wavedec(f1[:,a], db1)
+			f2.append(wv)
+
+		return f2
+
+	def inverse(self, wtr):
+		"""
+		"""
+		f1 = []
+		for a in range(len(wtr)):
+			wv = pywt.waverec(wtr[a], 'db1')
+			f1.append(wv)
+
+		F = []    
+		f1 = numpy.array(f1).transpose()
+
+		for t in range(f1.shape[0]):
+			f = gavish_wavelet_inverse(self.tree, self.ind, self.G, f1[t])
+			F.append(f)
+
+		return numpy.array(F)
+
+	def drop_frequency(self, wtr, n):
+		coeffs = {}
+		for i in range(len(wtr)):
+			for j in range(len(wtr[i])):
+				for k in range(len(wtr[i][j])):
+					coeffs[(i,j,k)] = abs(wtr[i][j][k])
+
+		sorted_coeffs = sorted(coeffs.items(), key=operator.itemgetter(1), reverse=True)
+
+		wtr_copy = copy.deepcopy(wtr)
+
+		for k in range(n, len(sorted_coeffs)):
+			i = sorted_coeffs[k][0][0]
+			j = sorted_coeffs[k][0][1]
+			k = sorted_coeffs[k][0][2]
+
+			wtr_copy[i][j][k] = 0.0
+
+		return wtr_copy
+

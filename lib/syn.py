@@ -15,6 +15,68 @@ from collections import deque
 from sklearn.preprocessing import normalize
 from sklearn.cluster import SpectralClustering
 
+import random
+
+def synthetic_graph(size, num_edges, sparsity, energy, balance, noise):
+	size_part_a = int(math.ceil(float(size * balance) / 2))
+	size_part_b = size - size_part_a
+	F = []
+	edges = {}
+    
+	avg_a = float(numpy.sqrt(float(energy * size) / (size_part_a * size_part_b))) / 2.
+    
+	avg_b = -float(numpy.sqrt(float(energy * size) / (size_part_a * size_part_b))) / 2.
+    
+	for v in range(size):
+		if v < size_part_a:
+			F.append(random.gauss(avg_a, noise*avg_a))
+		else:
+			F.append(random.gauss(avg_b, noise*avg_a))
+    
+	G = networkx.Graph()
+    
+	for v in range(size-1):
+		G.add_edge(v,v+1)
+		edges[(v,v+1)] = True
+        
+	remaining_edges = num_edges - len(G.edges())
+	edges_accross = int((size_part_a * size_part_b * (1.-sparsity) * remaining_edges) / (size * (size-1)))
+	edges_within = remaining_edges - edges_accross
+    
+	for e in range(edges_accross):
+		v1 = random.randint(0, size_part_a-1)
+		v2 = random.randint(size_part_a, size-1)
+                     
+		while (v1,v2) in edges or v1 == v2:
+			v1 = random.randint(0,size_part_a-1)
+			v2 = random.randint(size_part_a, size_part_a+size_part_b-1)
+            
+		G.add_edge(v1,v2)
+		edges[(v1,v2)] = True
+        
+	for e in range(edges_within):
+		v1 = random.randint(0,size-1)
+		v2 = random.randint(0,size-1)
+        
+		if v1 > v2:
+			tmp = v1
+			v1 = v2
+			v2 = tmp
+        
+		while (v1,v2) in edges or v1 == v2 or (v1 < size_part_a and v2 >= size_part_a) or (v1 >= size_part_a and v2 < size_part_a):
+			v1 = random.randint(0,size-1)
+			v2 = random.randint(0,size-1)
+            
+			if v1 > v2:
+				tmp = v1
+				v1 = v2
+				v2 = tmp
+             
+		G.add_edge(v1,v2)
+		edges[(v1,v2)] = True
+        
+	return G, numpy.array(F), edges_accross+1
+
 def compute_distances(center, graph):
 	distances = networkx.shortest_path_length(graph, center)
     
@@ -64,7 +126,7 @@ def generate_dyn_heat(G, s, jump, n):
 		F0 = numpy.zeros(len(G.nodes()))
 		v = random.randint(0, len(G.nodes())-1)
 		seeds.append(v)
-		F0[v] = 1.0
+		F0[v] = len(G.nodes())
 		F0s.append(F0)
 
 	Fs.append(numpy.sum(F0s, axis=0))
@@ -77,7 +139,7 @@ def generate_dyn_heat(G, s, jump, n):
 		
 		Fs.append(numpy.sum(FIs, axis=0))
 
-	return numpy.array(Fs)
+	return numpy.array(Fs)[1:]
 
 def generate_dyn_gaussian_noise(G, n):
 	Fs = []
