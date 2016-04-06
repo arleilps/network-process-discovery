@@ -16,11 +16,17 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import SpectralClustering
 import os
 
-def set_f(G,F):
-	i = 0
-	for v in G.nodes():
-		G.node[v]["value"] = F[i]
-		i = i + 1
+def set_f(G,F,ids=None):
+	if ids is None:
+		i = 0
+		for v in G.nodes():
+			G.node[v]["value"] = F[i]
+			i = i + 1
+	else:
+		i = 0
+		for v in range(len(ids)):
+			G.node[ids[v]]["value"] = F[i]
+			i = i + 1
 
 def get_f(G):
 	F = []
@@ -139,3 +145,53 @@ def draw_partitions_with_values(G, partitions, dot_output_file_name, maximum=Non
 	output_file.write("}")
 
 	output_file.close()
+
+def draw_graph(G, dot_output_file_name):
+	output_file = open(dot_output_file_name, 'w')
+	output_file.write("graph G{\n")
+	output_file.write("rankdir=\"LR\";\n")
+	output_file.write("size=\"10,2\";\n")
+
+	for v in G.nodes():
+		color = rgb_to_hex(0,255,0)
+		output_file.write("\""+str(v)+"\" [shape=\"circle\",label=\"\",style=filled,fillcolor=\""+str(color)+"\",penwidth=\"2\",fixedsize=true,width=\"1\",height=\"1\"];\n")
+
+	for edge in G.edges():
+		output_file.write("\""+str(edge[0])+"\" -- \""+str(edge[1])+"\"[dir=\"none\",color=\"black\",penwidth=\"1\"];\n")
+
+	
+	output_file.write("}")
+
+	output_file.close()
+
+def draw_time_graph(G, fig_output_file_name):
+	svg_names = ""
+
+	for i in range(G.num_snaps()):
+		draw_graph(G.snap(i), "graph-"+str(i)+".dot")
+		os.system("sfdp -Goverlap=prism -Tsvg graph-"+str(i)+".dot > graph-"+str(i)+".svg")
+		os.system("rm graph-"+str(i)+".dot")
+		svg_names = svg_names + " graph-"+str(i)+".svg"
+		
+	os.system("python lib/svg_stack-master/svg_stack.py --direction=v --margin=0 "+svg_names+" > "+fig_output_file_name)
+
+	for i in range(G.num_snaps()):
+		os.system("rm graph-"+str(i)+".svg")
+
+def draw_time_graph_eig(G, eig, fig_output_file_name):
+	svg_names = ""
+	G.set_values(eig)
+	maximum = numpy.max(eig)
+	minimum = numpy.min(eig)
+
+	for i in range(G.num_snaps()):
+		draw_graph_with_values(G.snap(i),"graph-"+str(i)+".dot", minimum, maximum)
+		os.system("sfdp -Goverlap=prism -Tsvg graph-"+str(i)+".dot > graph-"+str(i)+".svg")
+		os.system("rm graph-"+str(i)+".dot")
+		svg_names = svg_names + " graph-"+str(i)+".svg"
+		
+	os.system("python lib/svg_stack-master/svg_stack.py --direction=v --margin=0 "+svg_names+" > "+fig_output_file_name)
+
+	for i in range(G.num_snaps()):
+		os.system("rm graph-"+str(i)+".svg")
+

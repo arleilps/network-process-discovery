@@ -17,6 +17,8 @@ from sklearn.cluster import SpectralClustering
 import pandas as pd
 from datetime import datetime, date, time, timedelta
 import statsmodels.api as sm
+from lib.time_graph import *
+
 
 def read_graph(input_graph_name, input_data_name):
 	input_data = open(input_data_name, 'r')
@@ -58,6 +60,27 @@ def read_graph(input_graph_name, input_data_name):
 	input_graph.close()
 	networkx.set_node_attributes(G, "value", values_in_graph)
     
+	return G
+
+def read_time_graph(input_name, max_time=-1):
+	input_file = open(input_name, 'r')
+	G = TimeGraph()
+
+	for line in input_file:
+		line = line.rstrip()
+		vec = line.rsplit(',')
+        
+		v1 = vec[0]
+		v2 = vec[1]
+		t = int(vec[2])
+		w = float(vec[3])
+		
+		if max_time < 0 or t <= max_time:
+			if v1 != v2:
+				G.add_edge(v1, v2, t, w)
+
+	input_file.close()
+
 	return G
 
 def read_values(input_data_name, G):

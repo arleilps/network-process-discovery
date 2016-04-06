@@ -409,8 +409,12 @@ def sweep(x, G):
 	for i in range(x.shape[0]):
 		size_one = size_one + 1
 		
-		nodes_one[sorted_x[i]] = True
+		#print(nodes_one)
+		#print(G.nodes()[sorted_x[i]])
 
+		#test
+		nodes_one[G.nodes()[sorted_x[i]]] = True
+		
 		for v in G.neighbors(G.nodes()[sorted_x[i]]):
 			if v not in nodes_one:
 				edges_cut = edges_cut + 1
@@ -423,16 +427,18 @@ def sweep(x, G):
 			val = float(edges_cut) / den
 		else:
 			val = networkx.number_of_nodes(G)
-		     
+		
+		#print(den, " - ", edges_cut)
+
 		if val <= best_val:
 			best_cand = i
 			best_val = val
 
 	vec = []
 
-#	print(best_val)
-#	print(x)
-#	print(sorted_x)
+	#print(best_val)
+	#print(x)
+	#print(sorted_x)
 	vec = numpy.zeros(networkx.number_of_nodes(G))
 
 	for i in range(x.shape[0]):
