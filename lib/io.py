@@ -62,7 +62,7 @@ def read_graph(input_graph_name, input_data_name):
     
 	return G
 
-def read_time_graph(input_name, max_time=-1):
+def read_time_graph(input_name, min_time=-1, max_time=-1):
 	input_file = open(input_name, 'r')
 	G = TimeGraph()
 
@@ -75,7 +75,7 @@ def read_time_graph(input_name, max_time=-1):
 		t = int(vec[2])
 		w = float(vec[3])
 		
-		if max_time < 0 or t <= max_time:
+		if (max_time < 0 or t <= max_time) or (min_time < 0 or t <= min_time):
 			if v1 != v2:
 				G.add_edge(v1, v2, t, w)
 
